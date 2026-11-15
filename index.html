@@ -303,6 +303,33 @@ body::before {
 .rankTbl td.s { text-align: right; color: var(--muted); font-size: 12px; width: 3.5em; }
 .rankTbl tr.me { background: color-mix(in srgb, var(--mark) 30%, transparent); font-weight: 700; }
 #rankMsg { margin: 4px 0 8px; font-size: 14px; color: var(--muted); }
+.rankMy { margin: 10px 0 0; padding: 9px 12px; border-radius: 8px; background: color-mix(in srgb, var(--mark) 30%, transparent); font-size: 14px; font-weight: 700; }
+.rankMy.off { background: transparent; border: 1px dashed var(--line); font-weight: 500; color: var(--muted); }
+.rankMy .btn { margin-left: 8px; }
+.rankTbl td.n.top { font-size: 18px; }
+#myRank { font-weight: 700; color: var(--ink); }
+.legend { margin: 10px 14px 0; border-top: 1px dashed var(--line); padding-top: 4px; }
+.legend summary { font-size: 13px; font-weight: 700; cursor: pointer; min-height: 34px; display: flex; align-items: center; }
+.lgItem { display: flex; gap: 9px; padding: 7px 0; border-bottom: 1px solid var(--line); font-size: 13px; line-height: 1.5; }
+.lgItem:last-child { border-bottom: 0; }
+.lgItem i { width: 11px; height: 11px; border-radius: 50%; background: var(--c, var(--ink)); margin-top: 5px; flex: none; }
+.lgItem b { display: block; font-size: 13px; }
+.lgItem .d { color: var(--muted); }
+.lgItem .now { display: block; font-weight: 700; margin-top: 1px; }
+.lgItem .now.pos { color: var(--up); }
+.lgItem .now.neg { color: var(--down); }
+.lgEmpty { font-size: 13px; color: var(--muted); padding: 6px 0; }
+.review { border: 1px solid var(--line); border-radius: 10px; padding: 12px 12px 10px; font-size: 14px; }
+.review h3 { margin: 0 0 8px; font-size: 15px; }
+.review[hidden] { display: none; }
+.rvRow { display: flex; justify-content: space-between; gap: 10px; padding: 5px 0; border-bottom: 1px solid var(--line); }
+.rvRow span { color: var(--muted); }
+.rvRow b { font-family: var(--font-num); font-variant-numeric: tabular-nums; text-align: right; }
+.rvRow b.pos { color: var(--up); }
+.rvRow b.neg { color: var(--down); }
+.review ul { margin: 10px 0 0; padding-left: 18px; }
+.review li { margin: 4px 0; color: var(--ink); text-wrap: pretty; }
+.review .rvNote { margin: 8px 0 0; font-size: 12px; color: var(--muted); }
 </style>
 
 </head>
@@ -315,6 +342,8 @@ body::before {
       <span id="acctWho">비로그인 · 이 기기에만 저장</span>
       <button class="btn ghost sm" id="btnAuth" type="button">로그인 / 가입</button>
       <button class="btn ghost sm" id="btnLogout" type="button" hidden>로그아웃</button>
+      <button class="btn ghost sm" id="btnRankGo" type="button">🏆 랭킹 보기</button>
+      <span id="myRank"></span>
     </div>
     <p class="acctNote" id="acctNote" aria-live="polite"></p>
     <section class="authBox" id="authBox" hidden aria-label="로그인 또는 가입">
@@ -362,6 +391,10 @@ body::before {
       <canvas id="chart" role="img" aria-label="캔들차트. 플레이하면 시간이 흐르고, 정지한 자리에서 매수와 매도를 할 수 있는 연습입니다."></canvas>
       <div class="dots" id="dots" aria-hidden="true"></div>
       <p class="sig" id="sigLine" aria-live="polite"></p>
+      <details class="legend" id="legend" open>
+        <summary>켜 둔 지표, 쉽게 읽는 법</summary>
+        <div id="lgBody"></div>
+      </details>
 
       <div class="ask" id="ask">
         <div class="transport">
@@ -399,6 +432,7 @@ body::before {
     <div class="summary" id="summary" hidden>
       <div class="sumBig" id="sumBig">1,000,000<span>원</span></div>
       <p id="sumText"></p>
+      <div class="review" id="review" hidden></div>
       <div class="shareRow">
         <input id="shareText" type="text" readonly aria-label="공유용 문장">
         <button class="btn ghost" id="btnCopy" type="button">복사</button>
@@ -412,6 +446,7 @@ body::before {
       <h2>파산</h2>
       <p id="brokeText"></p>
       <p class="cd" id="cdText" aria-live="off"></p>
+      <div class="review" id="reviewB" hidden></div>
       <div class="stack">
         <button class="btn solid" id="btnFree" type="button" disabled>무료로 초기화하고 100만원으로 다시 시작</button>
         <button class="btn ghost" id="btnPaid" type="button" disabled>1만원으로 100만원 충전 (준비 중)</button>
@@ -427,6 +462,7 @@ body::before {
       <button type="button" role="radio" aria-checked="false" data-rk="best">역대 수익률</button>
       <button type="button" role="radio" aria-checked="false" data-rk="asset">총자산</button>
     </div>
+    <p class="rankMy off" id="rankMy" hidden></p>
     <div id="rankList" class="rankList">불러오는 중…</div>
     <p class="note" id="rankNote">수익률은 한 판(시작 예수금 10만원 이상)의 최고 기록이에요. 총자산은 각 판 수익률을 100만원에서부터 이어 붙여 계산해요. 로그인한 상태에서 끝낸 가상 종목 판만 올라갑니다.</p>
   </section>
@@ -939,11 +975,85 @@ function buildChips() {
   });
   syncChips();
 }
+var IND_INFO = {
+  ma5: ['5봉 평균선', '최근 5개 봉의 평균 가격이에요. 가장 빠르게 움직이는 선이라 방향이 바뀌면 제일 먼저 알려줘요.'],
+  ma10: ['10봉 평균선', '최근 10개 봉의 평균 가격이에요. 단타에서 눌림목을 볼 때 많이 써요.'],
+  ma20: ['20봉 평균선', '최근 20개 봉의 평균 가격이에요. 가격이 이 선 위에 있으면 강한 편, 아래면 약한 편으로 봐요.'],
+  ma60: ['60봉 평균선', '조금 더 큰 흐름이에요. 이 선이 오르는 중이면 큰 방향도 오름세로 봐요.'],
+  ma120: ['120봉 평균선', '가장 느린 선이에요. 큰 추세의 기준선으로 써요.'],
+  bb: ['볼린저 밴드', '평균선 위아래로 친 띠예요. 가격이 아래 띠에 닿으면 많이 내린 편, 위 띠에 닿으면 많이 오른 편이에요.'],
+  env: ['엔벨로프', '20봉 평균선에서 정한 %만큼 위아래로 띄운 띠예요. 아래 띠 근처는 눌림, 위 띠 근처는 과열로 봐요.'],
+  vol: ['거래량', '봉마다 거래된 양이에요. 평소보다 크게 늘면 그 움직임에 힘이 실렸다는 뜻이에요.'],
+  rsi: ['RSI', '0~100 사이 숫자예요. 70 위는 너무 올랐다(과매수), 30 아래는 너무 내렸다(과매도)는 뜻이에요.'],
+  macd: ['MACD', '추세의 방향과 힘을 보여줘요. MACD선이 시그널선 위로 올라가면 상승 쪽, 아래로 내려가면 하락 쪽이에요.'],
+  stoch: ['스토캐스틱', '0~100 사이 숫자예요. 80 위는 과열, 20 아래는 침체예요. K선이 D선을 위로 뚫으면 반등 신호로 봐요.']
+};
+function stateOf(id, S, idx) {
+  var b = S.bars[idx], c = b.c, m, k;
+  if (/^ma\d+$/.test(id)) {
+    m = S.ma && S.ma[Number(id.slice(2))] ? S.ma[Number(id.slice(2))][idx] : null;
+    if (m == null) return null;
+    return c >= m ? { t: '가격이 이 선 위에 있어요 (강세)', tone: 'pos' } : { t: '가격이 이 선 아래에 있어요 (약세)', tone: 'neg' };
+  }
+  if (id === 'bb' && S.bb.u[idx] != null) {
+    var u = S.bb.u[idx], l = S.bb.l[idx];
+    if (c > u) return { t: '위 띠를 뚫었어요 (많이 오른 상태)', tone: '' };
+    if (c < l) return { t: '아래 띠 밖이에요 (많이 내린 상태)', tone: '' };
+    k = u === l ? 50 : Math.round((c - l) / (u - l) * 100);
+    return { t: '띠 안 ' + k + '% 위치 (0%=아래, 100%=위)', tone: '' };
+  }
+  if (id === 'env' && S.env.u[idx] != null) {
+    var eu = S.env.u[idx], el = S.env.l[idx];
+    if (c > eu) return { t: '위 띠 밖이에요 (과열 주의)', tone: '' };
+    if (c < el) return { t: '아래 띠 밖이에요 (눌림 구간)', tone: '' };
+    return { t: '띠 안 ' + Math.round((c - el) / (eu - el) * 100) + '% 위치', tone: '' };
+  }
+  if (id === 'vol') {
+    var sum = 0, n = 0, j;
+    for (j = Math.max(0, idx - 20); j < idx; j++) { sum += S.bars[j].v; n++; }
+    if (!n || !sum) return null;
+    var r = b.v / (sum / n);
+    return { t: r >= 1.5 ? '평소의 ' + r.toFixed(1) + '배 거래 (힘이 실렸어요)' : r <= 0.6 ? '평소보다 한산해요' : '평소 수준이에요', tone: '' };
+  }
+  if (id === 'rsi' && S.rsi[idx] != null) {
+    var rv = S.rsi[idx];
+    return { t: 'RSI ' + rv.toFixed(0) + (rv >= 70 ? ' · 너무 오른 구간(과매수)' : rv <= 30 ? ' · 너무 내린 구간(과매도)' : ' · 보통 구간'), tone: '' };
+  }
+  if (id === 'macd' && S.macd.h[idx] != null) {
+    return S.macd.h[idx] >= 0 ? { t: 'MACD가 시그널 위 (상승 쪽)', tone: 'pos' } : { t: 'MACD가 시그널 아래 (하락 쪽)', tone: 'neg' };
+  }
+  if (id === 'stoch' && S.stoch.k[idx] != null && S.stoch.d[idx] != null) {
+    var kk = S.stoch.k[idx], dd = S.stoch.d[idx];
+    var z = kk >= 80 ? ' · 과열 구간' : kk <= 20 ? ' · 침체 구간' : '';
+    return kk > dd ? { t: 'K가 D 위 (반등 쪽)' + z, tone: 'pos' } : { t: 'K가 D 아래 (약한 쪽)' + z, tone: 'neg' };
+  }
+  return null;
+}
+function renderLegend() {
+  var box = $('lgBody'); if (!box) return; box.innerHTML = '';
+  var V = G.view; if (!V) return;
+  var idx = V.bars.length - 1, any = false;
+  INDS.forEach(function (d) {
+    if (!IND_ON[d.id]) return;
+    any = true;
+    var inf = IND_INFO[d.id] || [d.label, ''];
+    var row = document.createElement('div'); row.className = 'lgItem';
+    var dot = document.createElement('i'); dot.style.setProperty('--c', 'var(' + d.v + ')');
+    var tx = document.createElement('div');
+    var nm = document.createElement('b'); nm.textContent = inf[0] === d.label ? d.label : d.label + ' · ' + inf[0];
+    var ds = document.createElement('span'); ds.className = 'd'; ds.textContent = inf[1];
+    tx.appendChild(nm); tx.appendChild(ds);
+    var st = null; try { st = stateOf(d.id, V, idx); } catch (e) {}
+    if (st) { var sp = document.createElement('span'); sp.className = 'now ' + (st.tone || ''); sp.textContent = '지금: ' + st.t; tx.appendChild(sp); }
+    row.appendChild(dot); row.appendChild(tx); box.appendChild(row);
+  });
+  if (!any) { var em = document.createElement('div'); em.className = 'lgEmpty'; em.textContent = '켜진 보조지표가 없어요. 위의 "보조지표"에서 켜 보세요.'; box.appendChild(em); }
+}
 function renderSig() {
   var box = $('sigLine'); box.innerHTML = '';
   var V = G.view; if (!V) return;
   signals(V, V.bars.length - 1, IND_ON).forEach(function (s) {
-    var sp = document.createElement('span'); if (s.tone) sp.className = s.tone; sp.textContent = s.t; box.appendChild(sp);
+    var sp = document.createElement('span'); if (s.tone) sp.className = s.tone; sp.textContent = (s.tone === 'pos' ? '▲ ' : s.tone === 'neg' ? '▼ ' : '') + s.t; box.appendChild(sp);
   });
 }
 function indText(idx) {
@@ -1062,7 +1172,7 @@ function buildView() {
   G.view = indicatorsFor(V, ENV_PCT);
 }
 function refresh() {
-  buildView(); updateStats(); renderTrade(); renderSig(); drawChart(); saveGame(false);
+  buildView(); updateStats(); renderTrade(); renderSig(); renderLegend(); drawChart(); saveGame(false);
 }
 function draw() { if (G.view) drawChart(); }
 
@@ -1161,7 +1271,7 @@ function startRound() {
   var P = pickSeries();
   G.S = P.S; G.sd = P.sd; G.total = P.total; G.seed = P.seed; G.maxStart = P.maxStart; G.rid = newRid();
   G.t0 = G.t = G.S.dayEnd[G.sd - 1]; G.tEnd = G.S.dayEnd[G.sd + G.total - 1];
-  G.hist = []; G.marks = [];
+  G.hist = []; G.marks = []; G.review = null; ['review', 'reviewB'].forEach(function (id) { var e = $(id); if (e) e.hidden = true; });
   G.cash = A.cash; G.startCash = A.cash; G.held = 0; G.avg = 0; G.dayEq = A.cash;
   G.over = false; G.hover = -1;
   $('qTitle').textContent = '종목 비공개 · ' + G.total + '거래일';
@@ -1248,6 +1358,82 @@ function liquidate(P) {
   if (G.held > 0) { G.cash += sellNet(G.held, P); G.held = 0; G.avg = 0; }
 }
 
+// ---------- 매매 복기 ----------
+function minText(m) { return m < 60 ? Math.round(m) + '분' : (m / 60).toFixed(1) + '시간'; }
+function computeReview(roundRate) {
+  var S = G.S, lo = G.t0, hi = Math.min(G.t, G.tEnd), R = { rate: roundRate };
+  var held = 0, avg = 0, wins = 0, losses = 0, sumW = 0, sumL = 0, dca = 0, chase = 0, trades = G.marks.length;
+  var holdSum = 0, holdN = 0, openT = null, i, j, r, P;
+  G.marks.forEach(function (m) {
+    P = S.c[m.t];
+    if (m.kind === 'buy') {
+      if (held > 0 && P < avg * 0.995) dca++;
+      var mx = 0; for (j = Math.max(lo, m.t - 60); j < m.t; j++) if (S.c[j] > mx) mx = S.c[j];
+      if (mx > 0 && P >= mx * 0.995 && m.t - lo >= 30) chase++;
+      if (held === 0) openT = m.t;
+      avg = (avg * held + m.q * P) / (held + m.q); held += m.q;
+    } else {
+      r = avg > 0 ? (P / avg - 1) * 100 : 0;
+      if (r >= 0) { wins++; sumW += r; } else { losses++; sumL += -r; }
+      held -= m.q;
+      if (held <= 0) { held = 0; if (openT != null) { holdSum += m.t - openT; holdN++; openT = null; } avg = 0; }
+    }
+  });
+  if (held > 0) {                                  // 끝까지 들고 있던 물량은 마지막 가격에 정리된 것으로 계산
+    P = S.c[hi]; r = (P / avg - 1) * 100;
+    if (r >= 0) { wins++; sumW += r; } else { losses++; sumL += -r; }
+    if (openT != null) { holdSum += hi - openT; holdN++; }
+  }
+  R.wins = wins; R.losses = losses; R.avgW = wins ? sumW / wins : 0; R.avgL = losses ? sumL / losses : 0;
+  R.dca = dca; R.chase = chase; R.trades = trades; R.hold = holdN ? holdSum / holdN : 0;
+  R.hodl = S.c[lo] > 0 ? (S.c[hi] / S.c[lo] - 1) * 100 : 0;
+  var minT = lo, best = { ret: 0, buyT: lo, sellT: lo };
+  for (i = lo + 1; i <= hi; i++) {
+    if (S.c[i] < S.c[minT]) minT = i;
+    var rt = S.c[i] / S.c[minT] - 1;
+    if (rt > best.ret) best = { ret: rt, buyT: minT, sellT: i };
+  }
+  R.best = best;
+  G.review = R;
+  return R;
+}
+function renderReview(el, roundRate) {
+  if (!el || !G.S) return;
+  var R;
+  try { R = computeReview(roundRate); } catch (e) { el.hidden = true; return; }
+  var f1 = function (v) { return (v >= 0 ? '+' : '') + v.toFixed(1) + '%'; };
+  el.innerHTML = '';
+  var h = document.createElement('h3'); h.textContent = '내 매매 복기'; el.appendChild(h);
+  function row(k, v, tone) {
+    var d = document.createElement('div'); d.className = 'rvRow';
+    var a = document.createElement('span'); a.textContent = k;
+    var b = document.createElement('b'); b.textContent = v; if (tone) b.className = tone;
+    d.appendChild(a); d.appendChild(b); el.appendChild(d);
+  }
+  row('이번 판 내 수익률', f1(R.rate), R.rate >= 0 ? 'pos' : 'neg');
+  row('그냥 들고만 있었다면', f1(R.hodl), R.hodl >= 0 ? 'pos' : 'neg');
+  row('★ 한 번 사고팔아 얻을 수 있던 최대', f1(R.best.ret * 100), 'pos');
+  if (R.wins + R.losses > 0) {
+    row('매매 결과', R.wins + '승 ' + R.losses + '패 (승률 ' + Math.round(R.wins / (R.wins + R.losses) * 100) + '%)');
+    if (R.wins) row('이긴 매매 평균', '+' + R.avgW.toFixed(1) + '%', 'pos');
+    if (R.losses) row('진 매매 평균', '−' + R.avgL.toFixed(1) + '%', 'neg');
+    if (R.hold > 0) row('평균 보유 시간', minText(R.hold));
+  }
+  var tips = [];
+  if (R.trades === 0) tips.push('이번 판은 매매 없이 지켜만 봤어요. 연습이 목적이라면 작은 비중으로라도 한 번 들어가 보세요.');
+  if (R.wins && R.losses && R.avgL > R.avgW * 1.2) tips.push('이익은 평균 +' + R.avgW.toFixed(1) + '%에서 끊고, 손실은 평균 −' + R.avgL.toFixed(1) + '%까지 버텼어요. 손절은 더 빠르게, 이익은 더 길게 가져가 보세요.');
+  else if (R.wins && R.losses && R.avgW > R.avgL * 1.5) tips.push('이익은 길게, 손실은 짧게 끊었어요. 좋은 패턴이에요.');
+  if (R.dca > 0) tips.push('평단보다 낮은 가격에서 추가로 산 적이 ' + R.dca + '번 있어요(물타기). 하락이 이어지면 손실이 같이 커져요.');
+  if (R.chase > 0) tips.push('직전 1시간 고점 근처에서 산 매수가 ' + R.chase + '번 있어요(추격 매수). 눌림을 기다리면 평단을 낮출 수 있어요.');
+  if (R.trades >= 20) tips.push('매매가 ' + R.trades + '번이에요. 수수료와 세금이 수익을 조금씩 깎으니 자리를 골라 보세요.');
+  if (R.trades > 0 && R.rate < R.hodl - 5) tips.push('가만히 들고 있는 편이 더 나았던 판이에요. 오래 갈 자리와 짧게 끝낼 자리를 구분해 보세요.');
+  if (tips.length) { var ul = document.createElement('ul'); tips.forEach(function (t) { var li = document.createElement('li'); li.textContent = t; ul.appendChild(li); }); el.appendChild(ul); }
+  var nt = document.createElement('p'); nt.className = 'rvNote';
+  nt.textContent = '※ 승패는 평단 기준이고 수수료·세금은 뺐어요. 차트의 ★ 두 개가 이 판에서 가장 좋았던 매수·매도 자리예요(결과를 알고 난 뒤의 이상적인 값이라 참고용이에요).';
+  el.appendChild(nt);
+  el.hidden = false;
+}
+
 function endRound(wentBroke) {
   stopPlay(); clearSave();
   G.over = true;
@@ -1255,7 +1441,7 @@ function endRound(wentBroke) {
   $('rankMsg').textContent = sess ? (G.mode === 'demo' ? '' : '내 CSV 종목으로 한 판은 랭킹에 올라가지 않아요.') : (NET_ON ? '로그인하면 이 기록이 랭킹에 올라가요.' : '');
   submitRound(A.cash);
   var gone = A.cash < MIN_CASH;
-  if (gone || wentBroke) { A.bankruptAt = Date.now(); saveAcct(); showBroke(true); return; }
+  if (gone || wentBroke) { A.bankruptAt = Date.now(); saveAcct(); renderReview($('reviewB'), G.startCash > 0 ? (A.cash / G.startCash - 1) * 100 : 0); showBroke(true); return; }
   saveAcct();
   var pnl = A.cash - G.startCash, rate = (A.cash / INITIAL - 1) * 100;
   var sb = $('sumBig'); sb.innerHTML = '';
@@ -1264,6 +1450,7 @@ function endRound(wentBroke) {
   var S = G.S, d0 = S.dates[G.sd], d1 = S.dates[G.sd + G.total - 1];
   var who = S.synthetic ? S.name + ' (가상 종목)' : S.name + ' · ' + d0 + ' ~ ' + d1;
   var roundRate = G.startCash > 0 ? (pnl / G.startCash * 100) : 0;
+  renderReview($('review'), roundRate);
   $('sumText').textContent = '정체 공개: ' + who + ' · 이번 판 ' + sgn(pnl) + '원 (' + (roundRate >= 0 ? '+' : '') + roundRate.toFixed(1) + '%) · 시작금 대비 ' +
     (rate >= 0 ? '+' : '') + rate.toFixed(1) + '% · 지금까지 ' + A.rounds + '판 · 최고 ' + fmt(A.peak) + '원. 번 돈은 다음 판으로 이어집니다.';
   $('shareText').value = '차트게임 ' + A.rounds + '판째, 예수금 ' + fmt(INITIAL) + '원 → ' + fmt(A.cash) + '원 (' + (rate >= 0 ? '+' : '') + rate.toFixed(1) + '%). 나는 얼마까지 불릴 수 있을까요?';
@@ -1445,18 +1632,46 @@ async function flushPending() {
   }
 }
 function pct(r) { var v = Number(r) * 100; return (v >= 0 ? '+' : '') + v.toFixed(1) + '%'; }
+var RK_NAME = { week: '주간 수익률', best: '역대 수익률', asset: '총자산' };
 function renderRank(rows) {
   var box = $('rankList'); box.innerHTML = '';
+  var my = $('rankMy'), mine = null;
+  if (sess) mine = rows.filter(function (r) { return r.out_name === sess.nick; })[0] || null;
+  my.innerHTML = '';
+  if (!NET_ON) { my.hidden = true; }
+  else {
+    my.hidden = false;
+    if (!sess) {
+      my.className = 'rankMy off';
+      my.appendChild(document.createTextNode('로그인하면 내 이름과 순위가 여기에 표시돼요.'));
+      var lb = document.createElement('button'); lb.type = 'button'; lb.className = 'btn ghost sm'; lb.textContent = '로그인 / 가입';
+      lb.addEventListener('click', openAuth); my.appendChild(lb);
+    } else if (mine) {
+      my.className = 'rankMy';
+      my.textContent = sess.nick + '님 · ' + RK_NAME[rankKind] + ' ' + mine.out_rank + '위 (' + (rankKind === 'asset' ? fmt(mine.out_asset) + '원' : pct(mine.out_ret)) + ')';
+    } else {
+      my.className = 'rankMy off';
+      my.textContent = sess.nick + '님은 아직 이 랭킹 50위 안에 없어요. 한 판을 끝내면 기록이 올라가요.';
+    }
+  }
+  $('myRank').textContent = mine ? RK_NAME[rankKind] + ' ' + mine.out_rank + '위' : '';
   if (!rows.length) { box.textContent = '아직 기록이 없어요. 첫 번째 주인공이 되어 보세요.'; return; }
   var tb = document.createElement('table'); tb.className = 'rankTbl';
+  var medal = { 1: '🥇', 2: '🥈', 3: '🥉' };
   rows.forEach(function (r) {
     var tr = document.createElement('tr'); if (sess && r.out_name === sess.nick) tr.className = 'me';
-    [['n', r.out_rank], ['', r.out_name], ['v', rankKind === 'asset' ? fmt(r.out_asset) + '원' : pct(r.out_ret)], ['s', r.out_rounds + '판']].forEach(function (c) {
+    var rk = medal[r.out_rank] || r.out_rank;
+    [['n' + (medal[r.out_rank] ? ' top' : ''), rk], ['', r.out_name], ['v', rankKind === 'asset' ? fmt(r.out_asset) + '원' : pct(r.out_ret)], ['s', r.out_rounds + '판']].forEach(function (c) {
       var td = document.createElement('td'); if (c[0]) td.className = c[0]; td.textContent = c[1]; tr.appendChild(td);
     });
     tb.appendChild(tr);
   });
   box.appendChild(tb);
+}
+function openAuth() {
+  var bx = $('authBox'); bx.hidden = false; authMsg('');
+  try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (e) { window.scrollTo(0, 0); }
+  $('inNick').focus({ preventScroll: true });
 }
 async function loadRank(who) {
   var box = $('rankList');
@@ -1479,6 +1694,7 @@ $('btnAuth').addEventListener('click', function () { var bx = $('authBox'); bx.h
 $('btnLogin').addEventListener('click', function () { doAuth('login'); });
 $('btnSignup').addEventListener('click', function () { doAuth('signup'); });
 $('btnLogout').addEventListener('click', doLogout);
+$('btnRankGo').addEventListener('click', function () { var r = $('rankBox'); try { r.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) { r.scrollIntoView(); } });
 $('inPw').addEventListener('keydown', function (e) { if (e.key === 'Enter') doAuth('login'); });
 function netInit() {
   sess = loadSess();
@@ -1605,6 +1821,33 @@ function drawChart() {
     ctx.fillStyle = C.ink; ctx.beginPath(); ctx.arc(x, y, 8, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = C.sheet; ctx.fillText(m.kind === 'buy' ? '매' : '도', x, y + 0.5);
   });
+
+  // 복기용: 이 판에서 가장 좋았던 매수·매도 자리 (판이 끝난 뒤에만)
+  if (G.over && G.review && G.review.best) {
+    var bst = G.review.best;
+    [[bst.buyT, '★매수'], [bst.sellT, '★매도']].forEach(function (z) {
+      var gi2 = ser.T.map[z[0]] - ser.first;
+      if (!(gi2 >= vs && gi2 <= ve)) return;
+      var b2 = all[gi2], x2 = X(gi2 - vs), y2 = z[1] === '★매수' ? Y(b2.l) + 26 : Y(b2.h) - 26;
+      ctx.fillStyle = C.mark; ctx.beginPath(); ctx.arc(x2, y2, 9, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#14202e'; ctx.fillText('★', x2, y2 + 0.5);
+    });
+  }
+
+  // 지표 이름표: 선의 오른쪽 끝에 이름을 붙여서 어떤 선인지 바로 알 수 있게
+  ctx.font = '700 10px "IBM Plex Sans KR", sans-serif'; ctx.textAlign = 'right'; ctx.textBaseline = 'bottom';
+  var tagYs = [];
+  function lineTag(arr, text, color) {
+    var v = arr ? arr[ve] : null; if (v == null) return;
+    var ty = Y(v) - 2; if (ty < priceTop + 8 || ty > priceBot) return;
+    for (var z = 0; z < tagYs.length; z++) { if (Math.abs(tagYs[z] - ty) < 11) ty = tagYs[z] - 11; }
+    tagYs.push(ty);
+    ctx.lineWidth = 3; ctx.strokeStyle = C.sheet; ctx.strokeText(text, padL + plotW - 2, ty);
+    ctx.fillStyle = color; ctx.fillText(text, padL + plotW - 2, ty);
+  }
+  [5, 10, 20, 60, 120].forEach(function (pp) { if (on['ma' + pp]) lineTag(ser.ma[pp], 'MA' + pp, COL['i' + pp]); });
+  if (on.bb) { lineTag(ser.bb.u, '볼린저↑', COL.bb); lineTag(ser.bb.l, '볼린저↓', COL.bb); }
+  if (on.env) { lineTag(ser.env.u, '엔벨↑', COL.env); lineTag(ser.env.l, '엔벨↓', COL.env); }
   ctx.font = MONO;
 
   // 평단선
